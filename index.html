@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🎬 Torrent & Magnet Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
+  <style>
+    body {
+      background-color: #121212;
+      color: #eee;
+      font-family: 'Segoe UI', sans-serif;
+      text-align: center;
+      padding: 2rem;
+    }
+    input[type="text"], input[type="file"], select {
+      width: 90%;
+      max-width: 600px;
+      padding: 12px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      background-color: #222;
+      color: #eee;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      background-color: #1e88e5;
+      color: white;
+      border-radius: 10px;
+      cursor: pointer;
+      margin: 10px;
+    }
+    video {
+      margin-top: 2rem;
+      width: 90%;
+      max-width: 900px;
+      border: 3px solid #1e88e5;
+      border-radius: 15px;
+      background: black;
+    }
+    #progress {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #aaa;
+    }
+    .footer {
+      margin-top: 40px;
+      font-size: 13px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🎬 Torrent & Magnet Player</h1>
+  <p>Paste a magnet link or upload a .torrent file to stream</p>
+
+  <input type="text" id="magnetInput" placeholder="Paste magnet link here..." />
+  <br>
+  <input type="file" id="torrentFile" accept=".torrent" />
+  <br>
+  <button onclick="startStreaming()">📥 Load Torrent</button>
+
+  <div id="fileSelector" style="display: none;">
+    <select id="videoSelect" onchange="playSelectedFile()"></select>
+  </div>
+
+  <video id="videoPlayer" controls autoplay></video>
+  <div id="progress"></div>
+
+  <div class="footer">
+    Powered by WebTorrent • Made with ❤️ by @noob
+  </div>
+
+  <script>
+    const client = new WebTorrent();
+    const videoPlayer = document.getElementById('videoPlayer');
+    const videoSelect = document.getElementById('videoSelect');
+    const progressDiv = document.getElementById('progress');
+    let currentTorrent = null;
+    let videoFiles = [];
+
+    function startStreaming() {
+      const magnetURI = document.getElementById('magnetInput').value.trim();
+      const torrentFile = document.getElementById('torrentFile').files[0];
+
+      if (currentTorrent) {
+        client.remove(currentTorrent);
+        currentTorrent = null;
+        videoPlayer.src = '';
+        videoFiles = [];
+        videoSelect.innerHTML = '';
+        document.getElementById('fileSelector').style.display = 'none';
+        progressDiv.textContent = '';
+      }
+
+      if (torrentFile) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          loadTorrent(new Uint8Array(e.target.result));
+        };
+        reader.readAsArrayBuffer(torrentFile);
+      } else if (magnetURI.startsWith('magnet:')) {
+        loadTorrent(magnetURI);
+      } else {
+        alert('Please enter a valid magnet link or upload a .torrent file.');
+      }
+    }
+
+    function loadTorrent(source) {
+      client.add(source, torrent => {
+        currentTorrent = torrent;
+
+        videoFiles = torrent.files.filter(f =>
+          f.name.endsWith('.mp4') || f.name.endsWith('.webm') || f.name.endsWith('.mkv')
+        );
+
+        if (videoFiles.length === 0) {
+          alert('No playable video files found in this torrent.');
+          return;
+        }
+
+        videoFiles.forEach((file, index) => {
+          const option = document.createElement('option');
+          option.value = index;
+          option.textContent = file.name;
+          videoSelect.appendChild(option);
+        });
+
+        document.getElementById('fileSelector').style.display = 'block';
+        playSelectedFile();
+
+        torrent.on('download', updateProgress);
+        torrent.on('done', updateProgress);
+      });
+    }
+
+    function playSelectedFile() {
+      const index = videoSelect.value;
+      const file = videoFiles[index];
+      if (!file) return;
+      videoPlayer.src = '';
+      file.renderTo(videoPlayer, { autoplay: true });
+    }
+
+    function updateProgress() {
+      const t = currentTorrent;
+      const percent = (t.progress * 100).toFixed(2);
+      const speed = (t.downloadSpeed / 1024 / 1024).toFixed(2);
+      const peers = t.numPeers;
+      progressDiv.textContent = `📥 Downloaded: ${percent}% • ⚡ Speed: ${speed} MB/s • 👥 Peers: ${peers}`;
+    }
+  </script>
+</body>
+</html>
